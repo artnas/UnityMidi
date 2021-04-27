@@ -6,4 +6,6 @@ MidiFile (ScriptableObject) assets are automatically created for every .mid file
 
 You can access both the raw midi data and the tracks/blocks created from it.
 
+![screenshot](https://i.imgur.com/NbqdP7R.png)
+
 Using this library for midi parsing: https://github.com/davidluzgouveia/midi-parser
