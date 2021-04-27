@@ -2,7 +2,7 @@
 
 ![screenshot](https://i.imgur.com/K7qtHos.png)
 
-MidiFile assets are automatically created for every .mid file in the Assets folder. All relevant scripts are in the Assets/Midi folder.
+MidiFile (ScriptableObject) assets are automatically created for every .mid file in the Assets folder using MidiFileImporter (ScriptableImporter). All relevant scripts are in the Assets/Midi folder.
 
 You can access both the raw midi data and the tracks/blocks created from it.
 
