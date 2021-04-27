@@ -26,7 +26,6 @@ namespace Midi
             var processor = new MidiProcessor(parsedMidiFile);
             midiFileAsset.Data = new MidiData
             {
-                AllBlocks = processor.AllBlocks,
                 Tracks = processor.Tracks
             };
 

@@ -8,8 +8,7 @@ namespace Midi
     public class MidiData
     {
         public List<MidiTrack> Tracks = new List<MidiTrack>();
-        public List<MidiBlock> AllBlocks = new List<MidiBlock>();
-        
+
         [Serializable]
         public class MidiBlock
         {
