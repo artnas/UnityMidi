@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -9,11 +10,24 @@ namespace Midi
         public MidiFile MidiAsset;
         public bool PlayOnAwake = true;
         public bool DisplayDebugUi;
+        
+        public readonly List<TrackProgress> ActiveTracks = new List<TrackProgress>();
 
         private MidiFile _currentMidiFile;
         private Coroutine _coroutine;
         private float _startTime;
-        List<TrackProgress> _tracks = new List<TrackProgress>();
+        
+        public Action<MidiData.MidiBlock> OnBlockStarted => midiBlock => { }; 
+        public Action<MidiData.MidiBlock> OnBlockCompleted => midiBlock => { }; 
+        public Action OnPlayingStarted => () => { }; 
+        public Action<bool> OnPlayingStopped => completed => { }; 
+        
+        public class TrackProgress
+        {
+            public MidiData.MidiTrack Track;
+            public List<MidiData.MidiBlock> ActiveBlocks = new List<MidiData.MidiBlock>();
+            public int CurrentBlockIndex = -1;
+        }
         
         private void Awake()
         {
@@ -31,29 +45,25 @@ namespace Midi
         {
             if (_coroutine != null)
             {
+                OnPlayingStopped?.Invoke(false);
                 StopCoroutine(_coroutine);
                 _coroutine = null;
             }
         }
 
-        private class TrackProgress
-        {
-            public MidiData.MidiTrack Track;
-            public List<MidiData.MidiBlock> ActiveBlocks = new List<MidiData.MidiBlock>();
-            public int CurrentBlockIndex = -1;
-        }
-        
         private IEnumerator MidiEnumerator(MidiFile midiAsset)
         {
+            OnPlayingStarted?.Invoke();
+            
             _currentMidiFile = midiAsset;
             _startTime = Time.time;
             
-            _tracks.Clear();
+            ActiveTracks.Clear();
             foreach (var track in midiAsset.Data.Tracks)
             {
                 if (track.Blocks.Count > 0)
                 {
-                    _tracks.Add(new TrackProgress
+                    ActiveTracks.Add(new TrackProgress
                     {
                         Track = track
                     });
@@ -66,7 +76,7 @@ namespace Midi
                 var hasUnfinishedTracks = false;
                 
                 // iterate all tracks
-                foreach (var trackData in _tracks)
+                foreach (var trackData in ActiveTracks)
                 {
                     var nextBlockIndex = trackData.CurrentBlockIndex + 1;
 
@@ -108,14 +118,18 @@ namespace Midi
             }
 
             _coroutine = null;
+            
+            OnPlayingStopped?.Invoke(true);
         }
 
         private void OnBlockStart(MidiData.MidiBlock block)
         {
+            OnBlockStarted?.Invoke(block);
         }
         
         private void OnBlockEnd(MidiData.MidiBlock block)
         {
+            OnBlockCompleted?.Invoke(block);
         }
         
         void OnGUI()
@@ -124,9 +138,9 @@ namespace Midi
                 return;
 
             var text = $"MIDI {_currentMidiFile.name} playing ({Time.time - _startTime:0.##}s)\n";
-            for (var index = 0; index < _tracks.Count; index++)
+            for (var index = 0; index < ActiveTracks.Count; index++)
             {
-                var trackData = _tracks[index];
+                var trackData = ActiveTracks[index];
                 text += $"track {index} - current block: {trackData.CurrentBlockIndex} ({trackData.ActiveBlocks.Count} active blocks)";
             }
 
