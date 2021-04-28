@@ -61,6 +61,11 @@ namespace Midi.Interpolators
         private void UpdateValueFromTrack()
         {
             var track = MidiPlayer.ActiveTracks[TrackIndex];
+
+            var range = new Vector2Int(
+                Mathf.Max(track.Track.MinNote, NoteFilterRange.x), 
+                Mathf.Min(track.Track.MaxNote, NoteFilterRange.y));
+            
             var maxActiveNote = Mathf.Max(track.Track.MinNote, NoteFilterRange.x);
             
             foreach (var activeBlock in track.ActiveBlocks)
@@ -74,7 +79,7 @@ namespace Midi.Interpolators
             }
 
             var percentageInNoteRange =
-                ((float)maxActiveNote - track.Track.MinNote) / ((float)track.Track.MaxNote - track.Track.MinNote);
+                ((float)maxActiveNote - range.x) / ((float)range.y - range.x);
             
             UpdateValue(percentageInNoteRange);
         }

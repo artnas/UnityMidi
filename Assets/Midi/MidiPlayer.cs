@@ -10,7 +10,9 @@ namespace Midi
         public MidiFile MidiAsset;
         public bool PlayOnAwake = true;
         public bool DisplayDebugUi;
-        
+
+        public AudioSource AudioSource;
+
         public readonly List<TrackProgress> ActiveTracks = new List<TrackProgress>();
 
         private MidiFile _currentMidiFile;
@@ -31,6 +33,10 @@ namespace Midi
         
         private void Awake()
         {
+            // try get audio source
+            if (!AudioSource)
+                AudioSource = GetComponent<AudioSource>();
+            
             if (MidiAsset && PlayOnAwake)
                 Play();
         }
@@ -72,7 +78,7 @@ namespace Midi
 
             while (true)
             {
-                var timeSinceStart = Time.time - _startTime;
+                var timeSinceStart = AudioSource ? AudioSource.time : Time.time - _startTime;
                 var hasUnfinishedTracks = false;
                 
                 // iterate all tracks

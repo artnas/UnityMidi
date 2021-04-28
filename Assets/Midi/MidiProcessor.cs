@@ -8,13 +8,14 @@ namespace Midi
     {
         public List<MidiData.MidiBlock> AllBlocks = new List<MidiData.MidiBlock>();
         public List<MidiData.MidiTrack> Tracks = new List<MidiData.MidiTrack>();
-        private Dictionary<byte, NoteOnEvent> _noteTimeMap = new Dictionary<byte, NoteOnEvent>();
+        private List<Dictionary<byte, NoteOnEvent>> _noteTimeMap = new List<Dictionary<byte, NoteOnEvent>>();
         private int _currentBpm = 128;
         
         private struct NoteOnEvent
         {
             public float StartTimeMs;
             public byte Velocity;
+            public int Count;
 
             public bool Equals(NoteOnEvent other)
             {
@@ -33,10 +34,13 @@ namespace Midi
             for (var i = 0; i < midiFile.TracksCount; i++)
             {
                 Tracks.Add(new MidiData.MidiTrack());
+                _noteTimeMap.Add(new Dictionary<byte, NoteOnEvent>());
             }
 
             foreach (var track in midiFile.Tracks)
             {
+                var map = _noteTimeMap[track.Index];
+                
                 foreach (var midiEvent in track.MidiEvents)
                 {
                     var currentTimeMs = MidiUtilities.MidiTimeToMs(_currentBpm, midiFile.TicksPerQuarterNote, midiEvent.Time);
@@ -46,7 +50,7 @@ namespace Midi
                     {
                         case MidiRawData.MidiEventType.NoteOff:
                             // block end
-                            var noteOnEvent = _noteTimeMap[note];
+                            var noteOnEvent = map[note];
                             // create new block
                             var block = new MidiData.MidiBlock
                             {
@@ -58,17 +62,51 @@ namespace Midi
                             
                             Tracks[track.Index].AddBlock(block);
 
-                            _noteTimeMap.Remove(note);
-                            
+                            if (map.TryGetValue(note, out var existingNote))
+                            {
+                                if (existingNote.Count == 1)
+                                {
+                                    map.Remove(note);
+                                }
+                                else
+                                {
+                                    map[note] = new NoteOnEvent
+                                    {
+                                        Count = existingNote.Count - 1,
+                                        Velocity = existingNote.Velocity,
+                                        StartTimeMs = existingNote.StartTimeMs
+                                    };
+                                }
+                            }
+                            else
+                            {
+                                throw new Exception($"note off event - could not find matching on event");
+                            }
+
                             AllBlocks.Add(block);
                             break;
                         case MidiRawData.MidiEventType.NoteOn:
                             // block start
-                            _noteTimeMap.Add(note, new NoteOnEvent
+                            
+                            if (map.TryGetValue(note, out var existingNoteOnEvent))
                             {
-                                StartTimeMs = currentTimeMs,
-                                Velocity = midiEvent.Arg3
-                            });
+                                map[note] = new NoteOnEvent
+                                {
+                                    StartTimeMs = currentTimeMs,
+                                    Velocity = midiEvent.Arg3,
+                                    Count = existingNoteOnEvent.Count + 1
+                                };
+                            }
+                            else
+                            {
+                                map.Add(note, new NoteOnEvent
+                                {
+                                    StartTimeMs = currentTimeMs,
+                                    Velocity = midiEvent.Arg3,
+                                    Count = 1
+                                });
+                            }
+                            
                             break;
                         case MidiRawData.MidiEventType.KeyAfterTouch:
                             break;
