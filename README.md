@@ -1,4 +1,6 @@
-# Unity MIDI importer
+# Unity MIDI importer and visualiser
+
+Demo video: https://www.youtube.com/watch?v=uAHd1TVxfyM
 
 ![screenshot](https://i.imgur.com/K7qtHos.png)
 
