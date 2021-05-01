@@ -10,6 +10,7 @@ namespace Midi
         public MidiFile MidiAsset;
         public bool PlayOnAwake = true;
         public bool DisplayDebugUi;
+        public bool DisplayDebugBlocks = true;
 
         public AudioSource AudioSource;
 
@@ -33,7 +34,7 @@ namespace Midi
         
         private void Awake()
         {
-            // try get audio source
+            // try get audio source if unset
             if (!AudioSource)
                 AudioSource = GetComponent<AudioSource>();
             
@@ -44,6 +45,10 @@ namespace Midi
         public void Play()
         {
             Stop();
+
+            if (!MidiAsset)
+                throw new Exception("MidiPlayer MidiAsset is null");
+            
             _coroutine = StartCoroutine(MidiEnumerator(MidiAsset));
         }
 
@@ -63,11 +68,11 @@ namespace Midi
             
             _currentMidiFile = midiAsset;
             _startTime = Time.time;
-            
+
             ActiveTracks.Clear();
             foreach (var track in midiAsset.Data.Tracks)
             {
-                if (track.Blocks.Count > 0)
+                // if (track.Blocks.Count > 0)
                 {
                     ActiveTracks.Add(new TrackProgress
                     {
@@ -122,10 +127,18 @@ namespace Midi
 
                 yield return null;
             }
-
-            _coroutine = null;
             
-            OnPlayingStopped?.Invoke(true);
+            if (AudioSource && AudioSource.loop)
+            {
+                // restart if audio source is looping
+                _coroutine = StartCoroutine(MidiEnumerator(MidiAsset));
+            }
+            else
+            {
+                // finish otherwise
+                _coroutine = null;
+                OnPlayingStopped?.Invoke(true);
+            }
         }
 
         private void OnBlockStart(MidiData.MidiBlock block)
@@ -147,10 +160,45 @@ namespace Midi
             for (var index = 0; index < ActiveTracks.Count; index++)
             {
                 var trackData = ActiveTracks[index];
-                text += $"track {index} - current block: {trackData.CurrentBlockIndex} ({trackData.ActiveBlocks.Count} active blocks)";
+                text += $"track {index} - current block: {trackData.CurrentBlockIndex} ({trackData.ActiveBlocks.Count} active blocks)\n";
             }
 
             GUI.Label(new Rect(10, 10, 400, 400), text);
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!DisplayDebugBlocks || !MidiAsset)
+                return;
+            
+            var time = AudioSource ? AudioSource.time : Time.time - _startTime;
+
+            for (var trackIndex = 0; trackIndex < MidiAsset.Data.Tracks.Count; trackIndex++)
+            {
+                var track = MidiAsset.Data.Tracks[trackIndex];
+                var activeTrackData = _coroutine != null ? ActiveTracks[trackIndex] : null;
+
+                for (var blockIndex = 0; blockIndex < track.Blocks.Count; blockIndex++)
+                {
+                    var block = track.Blocks[blockIndex];
+
+                    if (_coroutine != null && activeTrackData.CurrentBlockIndex + 1 >= blockIndex)
+                    {
+                        var blockInProgress = block.EndTimeSec > time;
+                        Gizmos.color = blockInProgress? Color.red : Color.green;
+                    }
+                    else
+                    {
+                        Gizmos.color = Color.white;
+                    }
+
+                    var center = block.StartTimeSec + block.LengthSec / 2f;
+                    Gizmos.DrawCube(new Vector3(center, block.Note, 0), new Vector3(block.LengthSec, 1, 1));
+                }
+            }
+
+            Gizmos.color = Color.blue;
+            Gizmos.DrawLine(new Vector3(time, 0), new Vector3(time, 127));
         }
     }
 }

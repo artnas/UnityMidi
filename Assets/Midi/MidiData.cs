@@ -20,6 +20,8 @@ namespace Midi
             public float StartTimeSec => StartTimeMs / 1000f;
             public float EndTimeSec => EndTimeMs / 1000f;
 
+            public float LengthSec => EndTimeSec - StartTimeSec;
+
             public override string ToString()
             {
                 return $"note: {Note}, velocity: {Velocity}, time: {StartTimeSec}s -> {EndTimeSec}s ({EndTimeSec - StartTimeSec}s)";
