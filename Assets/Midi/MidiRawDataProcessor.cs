@@ -4,12 +4,12 @@ using UnityEngine;
 
 namespace Midi
 {
-    public class MidiProcessor
+    public class MidiRawDataProcessor
     {
-        public List<MidiData.MidiBlock> AllBlocks = new List<MidiData.MidiBlock>();
-        public List<MidiData.MidiTrack> Tracks = new List<MidiData.MidiTrack>();
-        private List<Dictionary<byte, NoteOnEvent>> _noteTimeMap = new List<Dictionary<byte, NoteOnEvent>>();
-        private int _currentBpm = 128;
+        public readonly List<MidiData.MidiBlock> allBlocks = new List<MidiData.MidiBlock>();
+        public readonly List<MidiData.MidiTrack> tracks;
+        private readonly List<Dictionary<byte, NoteOnEvent>> _noteTimeMap = new List<Dictionary<byte, NoteOnEvent>>();
+        public byte Bpm { get; private set; } = 120;
         
         private struct NoteOnEvent
         {
@@ -28,13 +28,18 @@ namespace Midi
             }
         }
 
-        public MidiProcessor(ParsedMidiFile midiFile)
+        public MidiRawDataProcessor(ParsedMidiFile midiFile, MidiImportSettings midiImportSettings)
         {
-            Tracks = new List<MidiData.MidiTrack>(midiFile.TracksCount);
+            tracks = new List<MidiData.MidiTrack>(midiFile.TracksCount);
             for (var i = 0; i < midiFile.TracksCount; i++)
             {
-                Tracks.Add(new MidiData.MidiTrack());
+                tracks.Add(new MidiData.MidiTrack());
                 _noteTimeMap.Add(new Dictionary<byte, NoteOnEvent>());
+            }
+
+            if (midiImportSettings.OverrideBpm)
+            {
+                Bpm = midiImportSettings.Bpm;
             }
 
             foreach (var track in midiFile.Tracks)
@@ -43,24 +48,23 @@ namespace Midi
                 
                 foreach (var midiEvent in track.MidiEvents)
                 {
-                    var currentTimeMs = MidiUtilities.MidiTimeToMs(_currentBpm, midiFile.TicksPerQuarterNote, midiEvent.Time);
+                    var timsMs = MidiUtilities.MidiTimeToMs(Bpm, midiFile.TicksPerQuarterNote, midiEvent.Time);
                     var note = midiEvent.Arg2;
                     
                     switch ((MidiRawData.MidiEventType)midiEvent.Type)
                     {
-                        case MidiRawData.MidiEventType.NoteOff:
-                            // block end
+                        case MidiRawData.MidiEventType.NoteOff: // block end
                             var noteOnEvent = map[note];
                             // create new block
                             var block = new MidiData.MidiBlock
                             {
                                 StartTimeMs = noteOnEvent.StartTimeMs,
-                                EndTimeMs = currentTimeMs,
+                                EndTimeMs = timsMs,
                                 Note = note,
                                 Velocity = noteOnEvent.Velocity
                             };
                             
-                            Tracks[track.Index].AddBlock(block);
+                            tracks[track.Index].AddBlock(block);
 
                             if (map.TryGetValue(note, out var existingNote))
                             {
@@ -83,16 +87,14 @@ namespace Midi
                                 throw new Exception($"note off event - could not find matching on event");
                             }
 
-                            AllBlocks.Add(block);
+                            allBlocks.Add(block);
                             break;
-                        case MidiRawData.MidiEventType.NoteOn:
-                            // block start
-                            
+                        case MidiRawData.MidiEventType.NoteOn:  // block start
                             if (map.TryGetValue(note, out var existingNoteOnEvent))
                             {
                                 map[note] = new NoteOnEvent
                                 {
-                                    StartTimeMs = currentTimeMs,
+                                    StartTimeMs = timsMs,
                                     Velocity = midiEvent.Arg3,
                                     Count = existingNoteOnEvent.Count + 1
                                 };
@@ -101,7 +103,7 @@ namespace Midi
                             {
                                 map.Add(note, new NoteOnEvent
                                 {
-                                    StartTimeMs = currentTimeMs,
+                                    StartTimeMs = timsMs,
                                     Velocity = midiEvent.Arg3,
                                     Count = 1
                                 });
@@ -122,7 +124,13 @@ namespace Midi
                             switch (midiEvent.MetaEventType)
                             {
                                 case MidiRawData.MetaEventType.Tempo:
-                                    _currentBpm = midiEvent.Note;
+                                    // only set the bpm if override bpm is off
+                                    if (!midiImportSettings.OverrideBpm)
+                                    {
+                                        // set new bpm
+                                        Bpm = (byte) midiEvent.Note;
+                                    }
+                                    
                                     break;
                                 case MidiRawData.MetaEventType.TimeSignature:
                                     break;
@@ -138,7 +146,7 @@ namespace Midi
                 }
             }
 
-            foreach (var track in Tracks)
+            foreach (var track in tracks)
             {
                 if (track.Blocks.Count == 0)
                 {

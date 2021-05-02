@@ -10,7 +10,7 @@ namespace Midi
         public MidiRawData RawData;
         public MidiData Data;
 
-        public static MidiFile Create(string filePath)
+        public static MidiFile Create(string filePath, MidiImportSettings midiImportSettings)
         {
             var midiFileAsset = CreateInstance<MidiFile>();
             var parsedMidiFile = new ParsedMidiFile(filePath);
@@ -22,11 +22,12 @@ namespace Midi
                 Tracks = parsedMidiFile.Tracks,
                 TracksCount = parsedMidiFile.TracksCount
             };
-
-            var processor = new MidiProcessor(parsedMidiFile);
+            
+            var processor = new MidiRawDataProcessor(parsedMidiFile, midiImportSettings);
             midiFileAsset.Data = new MidiData
             {
-                Tracks = processor.Tracks
+                Tracks = processor.tracks,
+                Bpm = processor.Bpm
             };
 
             return midiFileAsset;

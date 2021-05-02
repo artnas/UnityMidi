@@ -3,14 +3,12 @@ using UnityEngine;
 
 namespace Midi.Interpolators
 {
-    public class MidiValueInterpolator : MonoBehaviour
+    public class MidiTrackValueInterpolator : MonoBehaviour
     {
         /// <summary>
         /// The player to use
         /// </summary>
         public MidiPlayer MidiPlayer;
-        
-        public Transform TargetTransform;
 
         /// <summary>
         /// Output value
@@ -19,7 +17,7 @@ namespace Midi.Interpolators
         public float Value;
         
         /// <summary>
-        /// Value range. ex (0.25, 0.75) will keep the value between 0.25 to 0.75
+        /// Range of possible values for active notes
         /// </summary>
         public Vector2 ValueRange = new Vector2(0, 1f);
 
@@ -57,8 +55,6 @@ namespace Midi.Interpolators
                 NoteFilterRange.x = NoteFilterRange.y;
                 NoteFilterRange.y = x;
             }
-
-            Value = ValueRange.x;
         }
 
         private void Update()
@@ -69,10 +65,10 @@ namespace Midi.Interpolators
                 return;
             }
             
-            UpdateValueFromTrack();
+            UpdateToHighestActiveNote();
         }
 
-        private void UpdateValueFromTrack()
+        private void UpdateToHighestActiveNote()
         {
             var track = MidiPlayer.ActiveTracks[TrackIndex];
 
@@ -80,51 +76,46 @@ namespace Midi.Interpolators
                 Mathf.Max(track.Track.MinNote, NoteFilterRange.x), 
                 Mathf.Min(track.Track.MaxNote, NoteFilterRange.y));
             
-            var maxActiveNote = Mathf.Max(track.Track.MinNote, NoteFilterRange.x);
+            var maxActiveNote = 0;
             var activeBlocksInRange = 0;
             
+            // iterate active blocks
             foreach (var activeBlock in track.ActiveBlocks)
             {
-                // if outside range, skip
+                // if outside note range, skip block
                 if (activeBlock.Note < NoteFilterRange.x || activeBlock.Note > NoteFilterRange.y) 
                     continue;
+                
+                activeBlocksInRange++;
 
                 if (activeBlock.Note > maxActiveNote)
-                {
                     maxActiveNote = activeBlock.Note;
-                    activeBlocksInRange++;
-                }
             }
 
-            if (activeBlocksInRange == 0)
+            // if has active blocks
+            if (activeBlocksInRange > 0)
+            {
+                var percentageInNoteRange = ((float) maxActiveNote - range.x) / ((float) range.y - range.x);
+                var valueWithinValueRange = ValueRange.x + (ValueRange.y - ValueRange.x) * percentageInNoteRange;
+                UpdateValue(valueWithinValueRange);
+            }
+            else
             {
                 UpdateValue(0);
             }
-            else
-            {
-                var percentageInNoteRange =
-                    ((float)maxActiveNote - range.x) / ((float)range.y - range.x);
-
-                UpdateValue(percentageInNoteRange);
-            }
         }
 
-        private void UpdateValue(float target)
+        private void UpdateValue(float newValue)
         {
-            var targetWithinRange = ValueRange.x + (ValueRange.y - ValueRange.x) * target;
-
-            if (Value < targetWithinRange)
+            // different interpolation depending on whether the value is higher or lower
+            if (Value < newValue)
             {
-                // fast interpolation if value is lower
-                Value = Mathf.Lerp(Value, targetWithinRange, Time.deltaTime * IncreasingValueInterpolationSpeed);
+                Value = Mathf.Lerp(Value, newValue, Time.deltaTime * IncreasingValueInterpolationSpeed);
             }
             else
             {
-                Value = Mathf.Lerp(Value, targetWithinRange, Time.deltaTime * DecreasingValueInterpolationSpeed);
+                Value = Mathf.Lerp(Value, newValue, Time.deltaTime * DecreasingValueInterpolationSpeed);
             }
-
-            if (TargetTransform)
-                TargetTransform.localScale = Vector3.one * Value;
         }
     }
 }

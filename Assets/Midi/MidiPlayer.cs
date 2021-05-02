@@ -150,17 +150,28 @@ namespace Midi
         {
             OnBlockCompleted?.Invoke(block);
         }
+
+        [ContextMenu("Fast forward")]
+        private void FastForward()
+        {
+            if (AudioSource)
+            {
+                AudioSource.time += 50;
+            }
+        }
         
         void OnGUI()
         {
             if (_coroutine == null || !DisplayDebugUi)
                 return;
+            
+            var time = AudioSource ? AudioSource.time : Time.time - _startTime;
 
-            var text = $"MIDI {_currentMidiFile.name} playing ({Time.time - _startTime:0.##}s)\n";
+            var text = $"MIDI {_currentMidiFile.name} playing ({time:0.##}s)\n";
             for (var index = 0; index < ActiveTracks.Count; index++)
             {
                 var trackData = ActiveTracks[index];
-                text += $"track {index} - current block: {trackData.CurrentBlockIndex} ({trackData.ActiveBlocks.Count} active blocks)\n";
+                text += $"track {index} - current block: {(trackData.CurrentBlockIndex == -1 ? "-" : trackData.CurrentBlockIndex.ToString())} ({trackData.ActiveBlocks.Count} active blocks)\n";
             }
 
             GUI.Label(new Rect(10, 10, 400, 400), text);
@@ -173,6 +184,14 @@ namespace Midi
             
             var time = AudioSource ? AudioSource.time : Time.time - _startTime;
 
+            var heightOffset = 10;
+
+            var totalHeight = 10;
+            foreach (var track in MidiAsset.Data.Tracks)
+            {
+                totalHeight += track.MaxNote - track.MinNote + 10;
+            }
+
             for (var trackIndex = 0; trackIndex < MidiAsset.Data.Tracks.Count; trackIndex++)
             {
                 var track = MidiAsset.Data.Tracks[trackIndex];
@@ -182,19 +201,23 @@ namespace Midi
                 {
                     var block = track.Blocks[blockIndex];
 
-                    if (_coroutine != null && activeTrackData.CurrentBlockIndex + 1 >= blockIndex)
+                    if (_coroutine != null && activeTrackData.CurrentBlockIndex >= blockIndex)
                     {
                         var blockInProgress = block.EndTimeSec > time;
-                        Gizmos.color = blockInProgress? Color.red : Color.green;
+                        Gizmos.color = blockInProgress? Color.blue : Color.green;
                     }
                     else
                     {
                         Gizmos.color = Color.white;
                     }
 
+                    var height = track.MaxNote - block.Note + heightOffset;
+
                     var center = block.StartTimeSec + block.LengthSec / 2f;
-                    Gizmos.DrawCube(new Vector3(center, block.Note, 0), new Vector3(block.LengthSec, 1, 1));
+                    Gizmos.DrawCube(new Vector3(center, -height + totalHeight, 0), new Vector3(block.LengthSec, 1, 1));
                 }
+
+                heightOffset += track.MaxNote - track.MinNote + 10;
             }
 
             Gizmos.color = Color.blue;
